@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ozellar Marine CV Tracker</title>
+
+<style>
+body {
+  font-family: Arial;
+  margin: 30px;
+  background: #f9f9f9;
+}
+
+h1 { color: orange; text-align: center; }
+h2 { text-align: center; }
+
+form {
+  background: #fff;
+  padding: 20px;
+  border: 1px solid #ccc;
+  max-width: 900px;
+  margin: auto;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.form-group { flex: 1; }
+
+label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  padding: 7px;
+  box-sizing: border-box;
+}
+
+button {
+  padding: 10px 20px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  background: #fff;
+}
+
+th, td {
+  border: 1px solid #000;
+  padding: 6px;
+  text-align: left;
+}
+
+th input {
+  width: 95%;
+  padding: 4px;
+}
+
+.delete {
+  background: red;
+  color: #fff;
+  border: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Ozellar Marine</h1>
+<h2>CV Tracker</h2>
+
+<form id="cvForm" enctype="multipart/form-data">
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>Seafarer Name</label>
+      <input type="text" name="name" required>
+    </div>
+    <div class="form-group">
+      <label>Rank</label>
+      <input type="text" name="rank" required>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="text" name="email">
+    </div>
+    <div class="form-group">
+      <label>Contact Number</label>
+      <input type="text" name="number" required>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>CV Collecting Date</label>
+      <input type="date" name="cvDate">
+    </div>
+    <div class="form-group">
+      <label>Remarks</label>
+      <input type="text" name="remarks">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>Upload CV / Mail</label>
+      <input type="file" name="cv" required>
+    </div>
+  </div>
+
+  <button type="submit">Submit</button>
+</form>
+
+<!-- BUTTONS -->
+<div style="text-align:center; margin-top:20px;">
+  <button onclick="toggleList()" id="toggleBtn">View List</button>
+  <button onclick="exportExcel()">Export Excel</button>
+</div>
+
+<!-- TABLE -->
+<table id="cvList" style="display:none;">
+<thead>
+<tr>
+  <th>Sr</th>
+  <th>Name<br><input onkeyup="filterTable(1)" placeholder="Search"></th>
+  <th>Rank<br><input onkeyup="filterTable(2)" placeholder="Search"></th>
+  <th>Email<br><input onkeyup="filterTable(3)" placeholder="Search"></th>
+  <th>Number<br><input onkeyup="filterTable(4)" placeholder="Search"></th>
+  <th>Date</th>
+  <th>Remarks</th>
+  <th>CV</th>
+  <th>Action</th>
+</tr>
+</thead>
+<tbody id="cvTable"></tbody>
+</table>
+
+<script>
+let listVisible = false;
+
+function toggleList(){
+  let table = document.getElementById("cvList");
+  let btn = document.getElementById("toggleBtn");
+
+  listVisible = !listVisible;
+
+  if(listVisible){
+    table.style.display = "";
+    btn.innerText = "Hide List";
+    loadData();
+  } else {
+    table.style.display = "none";
+    btn.innerText = "View List";
+  }
+}
+
+function loadData(){
+  fetch("fetch_cv.php")
+  .then(res => res.json())
+  .then(data => {
+    let table = document.getElementById("cvTable");
+    table.innerHTML = "";
+
+    data.forEach((cv, i) => {
+      table.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td>${cv.name}</td>
+        <td>${cv.rank}</td>
+        <td>${cv.email || ""}</td>
+        <td>${cv.number}</td>
+        <td>${cv.cv_date || ""}</td>
+        <td>${cv.remarks || ""}</td>
+        <td><a href="${cv.file_path}" target="_blank">View</a></td>
+        <td><button class="delete" onclick="deleteCV(${cv.id})">Delete</button></td>
+      </tr>`;
+    });
+  });
+}
+
+/* COLUMN FILTER */
+function filterTable(col){
+  let input = event.target.value.toLowerCase();
+  let rows = document.querySelectorAll("#cvTable tr");
+
+  rows.forEach(row => {
+    let cell = row.cells[col].innerText.toLowerCase();
+    row.style.display = cell.includes(input) ? "" : "none";
+  });
+}
+
+/* EXPORT TO EXCEL */
+function exportExcel(){
+  let table = document.getElementById("cvList").outerHTML;
+  let data = "application/vnd.ms-excel";
+  let file = new Blob([table], {type: data});
+  let url = URL.createObjectURL(file);
+
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "CV_List.xls";
+  a.click();
+}
+
+document.getElementById("cvForm").onsubmit = function(e){
+  e.preventDefault();
+  let formData = new FormData(this);
+
+  fetch("save_cv.php", {
+    method: "POST",
+    body: formData
+  }).then(() => {
+    this.reset();
+    if(listVisible) loadData();
+  });
+};
+
+function deleteCV(id){
+  if(confirm("Delete this CV?")){
+    let fd = new FormData();
+    fd.append("id", id);
+    fetch("delete_cv.php", {
+      method: "POST",
+      body: fd
+    }).then(() => loadData());
+  }
+}
+</script>
+
+</body>
+</html>
